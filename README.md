@@ -385,7 +385,9 @@ MIT License
 
 ## 联系方式
 
-小红书：[新晋 AI 打工猫](https://www.xiaohongshu.com/user/profile/152199798)（小红书号：152199798）
+小红书：[新晋 AI 打工猫](https://creator.xiaohongshu.com/)（小红书号：152199798）
+
+<img src="public/xhs_avatar.jpg" alt="新晋 AI 打工猫" width="200" />
 
 ## Stars
 [![Stargazers over time](https://starchart.cc/huixuedai-arch/xhs-publisher-enhanced.svg?variant=adaptive)](https://starchart.cc/huixuedai-arch/xhs-publisher-enhanced)
