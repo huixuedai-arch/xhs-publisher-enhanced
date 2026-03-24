@@ -1,11 +1,12 @@
 ---
-name: RedBookSkills
+name: RedBookSkills (Enhanced)
 description: |
-  将图文/视频内容自动发布到小红书（XHS），并支持登录检查、内容检索与互动操作。
+  小红书发布助手增强版 - 支持图文、视频、完整写长文发布流程（含一键排版→草稿箱审核）。
   适用场景：发布图文、发布视频、仅启动测试浏览器、获取登录二维码、首页推荐抓取、搜索笔记、评论互动、抓取内容数据。
 metadata:
   trigger: 发布内容到小红书
-  source: Angiin/Post-to-xhs
+  source: huixuedai-arch/xhs-publisher-enhanced
+  forked-from: white0dew/XiaohongshuSkills
 ---
 
 # Post-to-xhs
