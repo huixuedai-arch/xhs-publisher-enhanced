@@ -19,6 +19,7 @@ metadata:
 2. 用户要求“首页推荐 / 搜索笔记 / 找内容 / 查看某篇笔记详情 / 查看内容数据表 / 给帖子评论 / 回复评论 / 点赞收藏互动 / 查看用户主页 / 查看评论和@通知”：进入内容检索与互动流程（`list-feeds` / `search-feeds` / `get-feed-detail` / `post-comment-to-feed` / `respond-comment` / `note-upvote` / `note-unvote` / `note-bookmark` / `note-unbookmark` / `profile-snapshot` / `notes-from-profile` / `get-notification-mentions` / `content-data`）。
 3. 用户已提供 `标题 + 正文 + 视频(本地路径或 URL)`：直接进入视频发布流程。
 4. 用户已提供 `标题 + 正文 + 图片(本地路径或 URL)`：直接进入图文发布流程。
+5. 用户已提供 `标题 + 正文`（无图片）：直接进入写长文发布流程（小红书图文发布必须有图片，写长文不需要）。
 5. 用户只提供网页 URL：先提取网页内容与图片/视频，再给出可发布草稿，等待用户确认。
 6. 信息不全：先补齐缺失信息，不要直接发布。
 
@@ -53,6 +54,27 @@ metadata:
 2. 如需文件输入，先写入 `title.txt`、`content.txt`。
 3. 执行视频发布命令（默认无头）。视频上传后需等待处理完成。
 4. 回传执行结果（成功/失败 + 关键信息）。
+
+## 写长文发布流程（纯文字，无需图片）
+
+1. 准备输入（标题、正文，无图片）。
+2. 执行发布命令：`python scripts/publish_pipeline.py --long-article --title-file /abs/path/title.txt --content-file /abs/path/content.txt`
+3. 脚本自动完成：写长文tab → 新的创作 → 填标题正文 → 一键排版（默认模板）→ 下一步 → **暂存离开**（保存草稿，不是发布）
+4. 笔记存入草稿箱，由用户在创作者平台审核后手动发布。
+
+说明：写长文模式不需要图片，流程与图文/视频模式完全独立。
+
+```bash
+# 写长文发布（自动保存草稿）
+python scripts/publish_pipeline.py --long-article \
+  --title-file /abs/path/title.txt \
+  --content-file /abs/path/content.txt
+
+# 复用已有标签页
+python scripts/publish_pipeline.py --reuse-existing-tab --long-article \
+  --title-file /abs/path/title.txt \
+  --content-file /abs/path/content.txt
+```
 
 ## 内容检索与互动流程（搜索/详情/评论/内容数据）
 

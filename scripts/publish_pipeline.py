@@ -326,8 +326,14 @@ def main():
         help="Timer for publishing on note",
     )
 
-    # Media: images OR video (mutually exclusive)
-    media_group = parser.add_mutually_exclusive_group(required=True)
+    # Media: images OR video OR long-article (mutually exclusive, but long-article doesn't use media)
+    parser.add_argument(
+        "--long-article",
+        action="store_true",
+        default=False,
+        help="Use long article mode (no images or video required)"
+    )
+    media_group = parser.add_mutually_exclusive_group(required=False)
     media_group.add_argument(
         "--image-urls", nargs="+", help="Image URLs to download"
     )
@@ -533,7 +539,8 @@ def main():
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(2)
 
-    # --- Determine publish mode: video or image ---
+    # --- Determine publish mode: long article, video, or image ---
+    is_long_article_mode = bool(args.long_article)
     is_video_mode = bool(args.video or args.video_url)
 
     # --- Step 3: Prepare media ---
@@ -541,7 +548,9 @@ def main():
     video_path = None
     downloader = None
 
-    if is_video_mode:
+    if is_long_article_mode:
+        print("[pipeline] Step 3: Long article mode (no media required).")
+    elif is_video_mode:
         if args.video_url:
             print("[pipeline] Step 3: Downloading video...")
             downloader = ImageDownloader(temp_dir=args.temp_dir)
@@ -565,18 +574,23 @@ def main():
             print("Error: All image downloads failed.", file=sys.stderr)
             sys.exit(2)
     else:
-        image_paths = args.images
-        _verify_local_files_exist(
-            file_paths=image_paths,
-            media_label="Image",
-            skip_file_check=args.skip_file_check,
-        )
-        print(f"[pipeline] Step 3: Using {len(image_paths)} local image(s).")
+        image_paths = args.images or []
+        if image_paths:
+            _verify_local_files_exist(
+                file_paths=image_paths,
+                media_label="Image",
+                skip_file_check=args.skip_file_check,
+            )
+            print(f"[pipeline] Step 3: Using {len(image_paths)} local image(s).")
 
     # --- Step 4: Fill form ---
     print("[pipeline] Step 4: Filling form...")
     try:
-        if is_video_mode:
+        if is_long_article_mode:
+            publisher.publish_long_article(
+                title=title, content=content, post_time=post_time
+            )
+        elif is_video_mode:
             publisher.publish_video(
                 title=title, content=content, video_path=video_path
             )
@@ -584,7 +598,8 @@ def main():
             publisher.publish(
                 title=title, content=content, image_paths=image_paths, post_time=post_time
             )
-        _select_topics(publisher, topic_tags, timing_jitter=timing_jitter)
+        if not is_long_article_mode:
+            _select_topics(publisher, topic_tags, timing_jitter=timing_jitter)
         print("FILL_STATUS: READY_TO_PUBLISH")
     except CDPError as e:
         print(f"Error during form fill: {e}", file=sys.stderr)

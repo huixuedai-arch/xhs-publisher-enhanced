@@ -129,12 +129,17 @@ SELECTORS = {
     # "上传视频" tab - must click before uploading video
     "video_tab": "div.creator-tab",
     "video_tab_text": "上传视频",
+    # "写长文" tab - for publishing long articles without images
+    "long_article_tab": "div.creator-tab",
+    "long_article_tab_text": "写长文",
     # Upload area - the file input element for images (visible after clicking tab)
     "upload_input": ".upload-input",
     "upload_input_alt": 'input[type="file"]',
     # Title input field (visible after image upload)
     "title_input": "div.d-input input",
     "title_input_alt": 'input[placeholder*="填写标题"], input[placeholder*="标题"], input.d-text',
+    # Title input for long article mode
+    "title_input_long_article": 'textarea[placeholder*="标题"], textarea[placeholder*="输入标题"]',
     # Content editor area - current creator center may expose TipTap, ProseMirror or Quill.
     "content_editor": "div.tiptap.ProseMirror",
     "content_editor_alt": 'div.ProseMirror[contenteditable="true"]',
@@ -144,6 +149,8 @@ SELECTORS = {
     "publish_button": ".publish-page-publish-btn button.bg-red",
     "publish_button_text": "发布",
     "schedule_publish_button_text": "定时发布",
+    # Long article publish button (一键排版 has bg-red class)
+    "long_article_publish_button": "button.bg-red",
     "schedule_switch": ".post-time-wrapper .d-switch",
     "schedule_datetime_input": ".date-picker-container input",
     "image_preview_items": ".img-preview-area .pr",
@@ -3358,6 +3365,8 @@ class XiaohongshuPublisher:
                 const keywords = [
                     {json.dumps(SELECTORS["publish_button_text"])},
                     {json.dumps(SELECTORS["schedule_publish_button_text"])},
+                    "一键排版",  // Long article publish button
+                    "暂存离开",  // Long article save button
                 ];
                 const buttons = document.querySelectorAll("button, [role='button'], .d-button");
                 for (const node of buttons) {{
@@ -3380,6 +3389,8 @@ class XiaohongshuPublisher:
                 const selectors = [
                     {json.dumps(SELECTORS["publish_button"])},
                     "button.publishBtn",
+                    // Long article publish button
+                    "button.bg-red",
                 ];
                 const visible = (node) => (
                     node instanceof HTMLElement &&
@@ -3499,6 +3510,30 @@ class XiaohongshuPublisher:
     def _click_video_tab(self):
         """Click the '上传视频' tab to switch to video publish mode."""
         self._click_tab(SELECTORS["video_tab"], SELECTORS["video_tab_text"])
+    def _click_long_article_tab(self):
+        """Click the '写长文' tab to switch to long article publish mode."""
+        self._click_tab(SELECTORS["long_article_tab"], SELECTORS["long_article_tab_text"])
+
+    def _start_new_creation(self):
+        """Click the '新的创作' button in long article mode to open the editor."""
+        print("[cdp_publish] Clicking '新的创作' button...")
+        js = '''
+        (function() {
+            var buttons = Array.from(document.querySelectorAll("button"));
+            for (var b of buttons) {
+                if (b.textContent.trim() === "新的创作") {
+                    b.click();
+                    return true;
+                }
+            }
+            return false;
+        })()
+        '''
+        result = self._evaluate(js)
+        if not result:
+            raise CDPError("Could not find '新的创作' button.")
+        self._sleep(TAB_CLICK_WAIT, minimum_seconds=1.0)
+        print("[cdp_publish] '新的创作' clicked.")
 
     def _upload_images(self, image_paths: list[str]):
         """Upload images via the file input element."""
@@ -3622,23 +3657,42 @@ class XiaohongshuPublisher:
         print(f"[cdp_publish] Setting title: {title[:40]}...")
         self._sleep(ACTION_INTERVAL, minimum_seconds=0.25)
 
-        for selector in (SELECTORS["title_input"], SELECTORS["title_input_alt"]):
+        selectors_to_try = [SELECTORS["title_input"], SELECTORS["title_input_alt"]]
+        # Add long article title selector if available
+        if "title_input_long_article" in SELECTORS:
+            selectors_to_try.append(SELECTORS["title_input_long_article"])
+
+        for selector in selectors_to_try:
             found = self._evaluate(f"!!document.querySelector('{selector}')")
             if found:
                 escaped_title = json.dumps(title)
-                self._evaluate(f"""
-                    (function() {{
-                        var el = document.querySelector('{selector}');
-                        var nativeSetter = Object.getOwnPropertyDescriptor(
-                            window.HTMLInputElement.prototype, 'value'
-                        ).set;
-                        el.focus();
-                        nativeSetter.call(el, {escaped_title});
-                        el.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                        el.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                        el.blur();
-                    }})();
-                """)
+                # Check if it's a textarea (long article mode)
+                is_textarea = self._evaluate(f"document.querySelector('{selector}')?.tagName === 'TEXTAREA'")
+                if is_textarea:
+                    self._evaluate(f"""
+                        (function() {{
+                            var el = document.querySelector('{selector}');
+                            el.focus();
+                            el.value = {escaped_title};
+                            el.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                            el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                            el.blur();
+                        }})();
+                    """)
+                else:
+                    self._evaluate(f"""
+                        (function() {{
+                            var el = document.querySelector('{selector}');
+                            var nativeSetter = Object.getOwnPropertyDescriptor(
+                                window.HTMLInputElement.prototype, 'value'
+                            ).set;
+                            el.focus();
+                            nativeSetter.call(el, {escaped_title});
+                            el.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                            el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                            el.blur();
+                        }})();
+                    """)
                 print("[cdp_publish] Title set.")
                 return
 
@@ -4049,6 +4103,69 @@ class XiaohongshuPublisher:
 
 
 # ---------------------------------------------------------------------------
+
+    def publish_long_article(
+        self,
+        title: str,
+        content: str,
+        post_time: str | None = None,
+    ):
+        """
+        Execute the full long article publish workflow:
+        1. Navigate to creator publish page
+        2. Click '写长文' tab
+        3. Click '新的创作' button
+        4. Fill title
+        5. Fill content
+        6. Set schedule publish time (if necessary)
+
+        Args:
+            title: Article title
+            content: Article body text (paragraphs separated by newlines)
+            post_time: Optional scheduled publish time (e.g. "2026-03-01 10:00")
+        """
+        if not self.ws:
+            raise CDPError("Not connected. Call connect() first.")
+
+        if post_time and not validate_schedule_post_time(post_time):
+            raise CDPError(
+                "Scheduled publish time is invalid. "
+                "It must follow the format 'yyyy-MM-dd HH:mm' and fall within the next 14 days."
+            )
+
+        # Step 1: Navigate to publish page
+        self._navigate(XHS_CREATOR_URL)
+        self._sleep(2, minimum_seconds=1.0)
+
+        # Step 2: Click '写长文' tab
+        self._click_long_article_tab()
+
+        # Step 3: Click '新的创作' to start a new long article
+        self._start_new_creation()
+
+        # Step 4: Fill title
+        self._fill_title(title)
+
+        # Step 5: Fill content
+        self._fill_content(content)
+
+        # Step 6: Set schedule publish time (if provided)
+        self._set_schedule_post_time(post_time)
+
+        # Step 7: Click "一键排版" to apply template (uses default template)
+        self._click_auto_format()
+
+        # Step 8: Click "下一步" to go to final publish page
+        self._click_long_article_next_step()
+
+        # Step 9: Click "暂存离开" to save to draft (NOT publish)
+        self._click_long_article_save_draft()
+
+        print(
+            "\n[cdp_publish] Long article saved to draft.\n"
+            "  Please review in the creator dashboard before publishing.\n"
+        )
+
 # CLI entry point
 # ---------------------------------------------------------------------------
 
@@ -4111,11 +4228,12 @@ def main():
     )
 
     # fill - fill form without clicking publish
-    p_fill = sub.add_parser("fill", help="Fill title/content/images or video without publishing")
+    p_fill = sub.add_parser("fill", help="Fill title/content/images, video, or long article without publishing")
     p_fill.add_argument("--title", required=True)
     p_fill.add_argument("--content", default=None)
     p_fill.add_argument("--content-file", default=None, help="Read content from file")
-    p_fill_media = p_fill.add_mutually_exclusive_group(required=True)
+    p_fill.add_argument("--long-article", action="store_true", help="Use long article mode (no images)")
+    p_fill_media = p_fill.add_mutually_exclusive_group(required=False)
     p_fill_media.add_argument("--images", nargs="+", help="Local image file paths")
     p_fill_media.add_argument("--video", help="Local video file path")
 
@@ -4124,7 +4242,8 @@ def main():
     p_pub.add_argument("--title", required=True)
     p_pub.add_argument("--content", default=None)
     p_pub.add_argument("--content-file", default=None, help="Read content from file")
-    p_pub_media = p_pub.add_mutually_exclusive_group(required=True)
+    p_pub.add_argument("--long-article", action="store_true", help="Use long article mode (no images)")
+    p_pub_media = p_pub.add_mutually_exclusive_group(required=False)
     p_pub_media.add_argument("--images", nargs="+", help="Local image file paths")
     p_pub_media.add_argument("--video", help="Local video file path")
 
@@ -4466,7 +4585,11 @@ def main():
                 sys.exit(1)
 
             publisher.connect(reuse_existing_tab=reuse_existing_tab)
-            if getattr(args, "video", None):
+            if getattr(args, "long_article", False):
+                publisher.publish_long_article(
+                    title=args.title, content=content
+                )
+            elif getattr(args, "video", None):
                 publisher.publish_video(
                     title=args.title, content=content, video_path=args.video
                 )
@@ -4744,3 +4867,181 @@ if __name__ == "__main__":
     except SingleInstanceError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(3)
+
+    def _click_auto_format(self):
+        """Click the '一键排版' button in long article mode."""
+        print("[cdp_publish] Clicking '一键排版' button...")
+        js = '''
+        (function() {
+            var buttons = Array.from(document.querySelectorAll("button"));
+            for (var b of buttons) {
+                if (b.textContent.trim() === "一键排版") {
+                    b.click();
+                    return true;
+                }
+            }
+            return false;
+        })()
+        '''
+        result = self._evaluate(js)
+        if not result:
+            raise CDPError("Could not find '一键排版' button.")
+        self._sleep(TAB_CLICK_WAIT, minimum_seconds=1.5)
+        print("[cdp_publish] '一键排版' clicked.")
+
+    def _click_long_article_next_step(self):
+        """Click '下一步' button in long article mode using CDP mouse event.
+        
+        The '下一步' button is visible but hard to locate via DOM query,
+        so we use elementFromPoint to find it and CDP to click.
+        """
+        print("[cdp_publish] Clicking '下一步' button...")
+        # Scroll to bottom first
+        self._evaluate("window.scrollTo(0, 0)")
+        self._evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        self._sleep(1.5, minimum_seconds=1.0)
+        
+        # Use elementFromPoint to find the button
+        js = '''
+        (function() {
+            for (var x = 580; x < 750; x += 3) {
+                for (var y = 550; y < 610; y += 3) {
+                    var el = document.elementFromPoint(x, y);
+                    if (el && el.textContent.trim() === '下一步') {
+                        var rect = el.getBoundingClientRect();
+                        return JSON.stringify({
+                            ok: true,
+                            x: Math.round(rect.left + rect.width/2),
+                            y: Math.round(rect.top + rect.height/2)
+                        });
+                    }
+                }
+            }
+            return JSON.stringify({ok: false});
+        })()
+        '''
+        result = self._evaluate(js)
+        import json
+        data = json.loads(result)
+        
+        if not data.get('ok'):
+            raise CDPError("Could not find '下一步' button.")
+        
+        cx, cy = data['x'], data['y']
+        print(f"[cdp_publish] Found '下一步' at ({cx}, {cy}), clicking via CDP...")
+        
+        # Use CDP to send mouse click
+        self._send("Input.dispatchMouseEvent", {
+            "type": "mousePressed",
+            "x": cx, "y": cy,
+            "button": "left", "clickCount": 1
+        })
+        self._send("Input.dispatchMouseEvent", {
+            "type": "mouseReleased",
+            "x": cx, "y": cy,
+            "button": "left", "clickCount": 1
+        })
+        self._sleep(TAB_CLICK_WAIT, minimum_seconds=2.0)
+        print("[cdp_publish] '下一步' clicked.")
+
+
+    def _click_long_article_save_draft(self):
+        """Click '暂存离开' button to save the long article as draft (not publish).
+        
+        This is used instead of _click_long_article_publish when we want to
+        save to draft for user review before publishing.
+        """
+        print("[cdp_publish] Clicking '暂存离开' (save draft) button...")
+        self._evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        self._sleep(1.5, minimum_seconds=1.0)
+        
+        js = """
+        (function() {
+            for (var x = 400; x < 750; x += 5) {
+                for (var y = 500; y < 620; y += 5) {
+                    var el = document.elementFromPoint(x, y);
+                    if (el && el.textContent.trim() === '暂存离开') {
+                        var rect = el.getBoundingClientRect();
+                        return JSON.stringify({
+                            ok: true,
+                            x: Math.round(rect.left + rect.width/2),
+                            y: Math.round(rect.top + rect.height/2)
+                        });
+                    }
+                }
+            }
+            return JSON.stringify({ok: false});
+        })()
+        """
+        result = self._evaluate(js)
+        import json
+        data = json.loads(result)
+        
+        if not data.get('ok'):
+            raise CDPError("Could not find '暂存离开' button.")
+        
+        cx, cy = data['x'], data['y']
+        print(f"[cdp_publish] Found '暂存离开' at ({cx}, {cy}), clicking via CDP...")
+        
+        self._send("Input.dispatchMouseEvent", {
+            "type": "mousePressed",
+            "x": cx, "y": cy,
+            "button": "left", "clickCount": 1
+        })
+        self._send("Input.dispatchMouseEvent", {
+            "type": "mouseReleased",
+            "x": cx, "y": cy,
+            "button": "left", "clickCount": 1
+        })
+        self._sleep(TAB_CLICK_WAIT, minimum_seconds=2.0)
+        print("[cdp_publish] '暂存离开' clicked, article saved to draft.")
+
+
+    def _click_long_article_publish(self):
+        """Click '发布' button in long article final publish page."""
+        print("[cdp_publish] Clicking '发布' button...")
+        # Scroll to bottom
+        self._evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        self._sleep(1.5, minimum_seconds=1.0)
+        
+        # Use elementFromPoint to find the publish button
+        js = '''
+        (function() {
+            for (var x = 400; x < 800; x += 5) {
+                for (var y = 500; y < 620; y += 5) {
+                    var el = document.elementFromPoint(x, y);
+                    if (el && el.textContent.trim() === '发布') {
+                        var rect = el.getBoundingClientRect();
+                        return JSON.stringify({
+                            ok: true,
+                            x: Math.round(rect.left + rect.width/2),
+                            y: Math.round(rect.top + rect.height/2)
+                        });
+                    }
+                }
+            }
+            return JSON.stringify({ok: false});
+        })()
+        '''
+        result = self._evaluate(js)
+        import json
+        data = json.loads(result)
+        
+        if not data.get('ok'):
+            raise CDPError("Could not find '发布' button.")
+        
+        cx, cy = data['x'], data['y']
+        print(f"[cdp_publish] Found '发布' at ({cx}, {cy}), clicking via CDP...")
+        
+        self._send("Input.dispatchMouseEvent", {
+            "type": "mousePressed",
+            "x": cx, "y": cy,
+            "button": "left", "clickCount": 1
+        })
+        self._send("Input.dispatchMouseEvent", {
+            "type": "mouseReleased",
+            "x": cx, "y": cy,
+            "button": "left", "clickCount": 1
+        })
+        self._sleep(TAB_CLICK_WAIT, minimum_seconds=2.0)
+        print("[cdp_publish] '发布' clicked.")
