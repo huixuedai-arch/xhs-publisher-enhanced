@@ -389,11 +389,10 @@ MIT License
 
 <img src="public/whitedew.jpg" alt="微信二维码" width="240" />
 
-### 知识星球，分享最新的使用技巧
-<img src="20260302-141029.jpg" alt="知识星球二维码" width="240" />
-
 ## Stars
-[![Stargazers over time](https://starchart.cc/white0dew/XiaohongshuSkills.svg?variant=adaptive)](https://starchart.cc/white0dew/XiaohongshuSkills)
+[![Stargazers over time](https://starchart.cc/huixuedai-arch/xhs-publisher-enhanced.svg?variant=adaptive)](https://starchart.cc/huixuedai-arch/xhs-publisher-enhanced)
 
 ## 致谢
-灵感来自：[Post-to-xhs](https://github.com/Angiin/Post-to-xhs)
+## 致谢
+
+基于 [white0dew/XiaohongshuSkills](https://github.com/white0dew/XiaohongshuSkills) 增强，原始项目灵感来自 [Angiin/Post-to-xhs](https://github.com/Angiin/Post-to-xhs)。
