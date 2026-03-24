@@ -385,9 +385,7 @@ MIT License
 
 ## 联系方式
 
-微信号：`whitedewstory`
-
-<img src="public/whitedew.jpg" alt="微信二维码" width="240" />
+小红书：[新晋 AI 打工猫](https://www.xiaohongshu.com/user/profile/152199798)（小红书号：152199798）
 
 ## Stars
 [![Stargazers over time](https://starchart.cc/huixuedai-arch/xhs-publisher-enhanced.svg?variant=adaptive)](https://starchart.cc/huixuedai-arch/xhs-publisher-enhanced)
