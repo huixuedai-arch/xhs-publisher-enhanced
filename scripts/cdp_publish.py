@@ -4166,6 +4166,132 @@ class XiaohongshuPublisher:
             "  Please review in the creator dashboard before publishing.\n"
         )
 
+    def _click_auto_format(self):
+        """Click the '一键排版' button in long article mode."""
+        print("[cdp_publish] Clicking '一键排版' button...")
+        js = """
+        (function() {
+            var buttons = Array.from(document.querySelectorAll("button"));
+            for (var b of buttons) {
+                if (b.textContent.trim() === "一键排版") {
+                    b.click();
+                    return true;
+                }
+            }
+            return false;
+        })()
+        """
+        result = self._evaluate(js)
+        if not result:
+            raise CDPError("Could not find '一键排版' button.")
+        self._sleep(TAB_CLICK_WAIT, minimum_seconds=1.5)
+        print("[cdp_publish] '一键排版' clicked.")
+
+    def _click_long_article_next_step(self):
+        """Click '下一步' button in long article mode using CDP mouse event.
+        
+        The '下一步' button is visible but hard to locate via DOM query,
+        so we use elementFromPoint to find it.
+        """
+        print("[cdp_publish] Clicking '下一步' button...")
+        # First scroll to bottom to make the button visible/clickable
+        self._evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        self._sleep(1.5, minimum_seconds=1.0)
+        
+        js = """
+        (function() {
+            // Search in the footer-new container area
+            for (var x = 400; x < 750; x += 5) {
+                for (var y = 500; y < 620; y += 5) {
+                    var el = document.elementFromPoint(x, y);
+                    if (el && el.textContent.trim() === '下一步') {
+                        var rect = el.getBoundingClientRect();
+                        return JSON.stringify({
+                            ok: true,
+                            x: Math.round(rect.left + rect.width/2),
+                            y: Math.round(rect.top + rect.height/2)
+                        });
+                    }
+                }
+            }
+            return JSON.stringify({ok: false});
+        })()
+        """
+        result = self._evaluate(js)
+        import json
+        data = json.loads(result)
+        
+        if not data.get('ok'):
+            raise CDPError("Could not find '下一步' button.")
+        
+        cx, cy = data['x'], data['y']
+        print(f"[cdp_publish] Found '下一步' at ({cx}, {cy}), clicking via CDP...")
+        
+        self._send("Input.dispatchMouseEvent", {
+            "type": "mousePressed",
+            "x": cx, "y": cy,
+            "button": "left", "clickCount": 1
+        })
+        self._send("Input.dispatchMouseEvent", {
+            "type": "mouseReleased",
+            "x": cx, "y": cy,
+            "button": "left", "clickCount": 1
+        })
+        self._sleep(TAB_CLICK_WAIT, minimum_seconds=2.0)
+        print("[cdp_publish] '下一步' clicked.")
+
+    def _click_long_article_save_draft(self):
+        """Click '暂存离开' button to save the long article as draft (not publish).
+        
+        This is used instead of _click_long_article_publish when we want to
+        save to draft for user review before publishing.
+        """
+        print("[cdp_publish] Clicking '暂存离开' (save draft) button...")
+        self._evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        self._sleep(1.5, minimum_seconds=1.0)
+        
+        js = """
+        (function() {
+            for (var x = 400; x < 750; x += 5) {
+                for (var y = 500; y < 620; y += 5) {
+                    var el = document.elementFromPoint(x, y);
+                    if (el && el.textContent.trim() === '暂存离开') {
+                        var rect = el.getBoundingClientRect();
+                        return JSON.stringify({
+                            ok: true,
+                            x: Math.round(rect.left + rect.width/2),
+                            y: Math.round(rect.top + rect.height/2)
+                        });
+                    }
+                }
+            }
+            return JSON.stringify({ok: false});
+        })()
+        """
+        result = self._evaluate(js)
+        import json
+        data = json.loads(result)
+        
+        if not data.get('ok'):
+            raise CDPError("Could not find '暂存离开' button.")
+        
+        cx, cy = data['x'], data['y']
+        print(f"[cdp_publish] Found '暂存离开' at ({cx}, {cy}), clicking via CDP...")
+        
+        self._send("Input.dispatchMouseEvent", {
+            "type": "mousePressed",
+            "x": cx, "y": cy,
+            "button": "left", "clickCount": 1
+        })
+        self._send("Input.dispatchMouseEvent", {
+            "type": "mouseReleased",
+            "x": cx, "y": cy,
+            "button": "left", "clickCount": 1
+        })
+        self._sleep(TAB_CLICK_WAIT, minimum_seconds=2.0)
+        print("[cdp_publish] '暂存离开' clicked, article saved to draft.")
+
+
 # CLI entry point
 # ---------------------------------------------------------------------------
 
@@ -4867,7 +4993,6 @@ if __name__ == "__main__":
     except SingleInstanceError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(3)
-
     def _click_auto_format(self):
         """Click the '一键排版' button in long article mode."""
         print("[cdp_publish] Clicking '一键排版' button...")
