@@ -606,7 +606,7 @@ def main():
             )
         elif is_video_mode:
             publisher.publish_video(
-                title=title, content=content, video_path=video_path
+                title=title, content=content, video_path=video_path, save_draft=args.save_draft
             )
         else:
             publisher.publish(

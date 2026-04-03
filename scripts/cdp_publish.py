@@ -4108,6 +4108,7 @@ class XiaohongshuPublisher:
         title: str,
         content: str,
         video_path: str,
+        save_draft: bool = False,
     ):
         """
         Execute the full video publish workflow:
@@ -4116,11 +4117,13 @@ class XiaohongshuPublisher:
         3. Upload video file and wait for processing
         4. Fill title
         5. Fill content
+        6. Save to draft or publish
 
         Args:
             title: Article title
             content: Article body text (paragraphs separated by newlines)
             video_path: Local file path to the video to upload
+            save_draft: If True, save to draft instead of publishing
         """
         if not self.ws:
             raise CDPError("Not connected. Call connect() first.")
@@ -4145,10 +4148,15 @@ class XiaohongshuPublisher:
         # Step 5: Fill content
         self._fill_content(content)
 
-        print(
-            "\n[cdp_publish] Video content has been filled in.\n"
-            "  Please review in the browser before publishing.\n"
-        )
+        # Step 6: Save to draft or publish
+        if save_draft:
+            print("[cdp_publish] save_draft=True, clicking '暂存离开' to save as draft...")
+            self._click_save_draft()
+        else:
+            print(
+                "\n[cdp_publish] Video content has been filled in.\n"
+                "  Please review in the browser before publishing.\n"
+            )
 
 
 # ---------------------------------------------------------------------------
