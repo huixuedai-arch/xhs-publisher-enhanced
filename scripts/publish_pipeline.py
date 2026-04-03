@@ -365,6 +365,20 @@ def main():
         help="Preview mode: fill content only and never click publish button",
     )
 
+    # Publish mode: save to draft or publish directly
+    parser.add_argument(
+        "--publish",
+        action="store_true",
+        default=True,
+        help="Publish the note directly (default: True)",
+    )
+    parser.add_argument(
+        "--save-draft",
+        action="store_true",
+        default=False,
+        help="Save to draft instead of publishing",
+    )
+
     # Headless mode
     parser.add_argument(
         "--headless",
@@ -596,7 +610,7 @@ def main():
             )
         else:
             publisher.publish(
-                title=title, content=content, image_paths=image_paths, post_time=post_time
+                title=title, content=content, image_paths=image_paths, post_time=post_time, save_draft=args.save_draft
             )
         if not is_long_article_mode:
             _select_topics(publisher, topic_tags, timing_jitter=timing_jitter)
@@ -607,14 +621,20 @@ def main():
             downloader.cleanup()
         sys.exit(2)
 
-    # --- Step 5: Publish (optional) ---
-    should_publish = not args.preview
-    if args.auto_publish:
-        print("[pipeline] --auto-publish is now default and can be omitted.")
-    if args.preview:
-        print("[pipeline] Preview mode is on, skipping publish click.")
-
-    if should_publish:
+    # --- Step 5: Publish or Save to Draft ---
+    should_publish = not args.preview and not args.save_draft
+    
+    if args.save_draft:
+        print("[pipeline] Save-draft mode is on, clicking '暂存离开' button...")
+        try:
+            publisher._click_long_article_save_draft()
+            print("DRAFT_STATUS: SAVED")
+        except CDPError as e:
+            print(f"Error saving draft: {e}", file=sys.stderr)
+            if downloader:
+                downloader.cleanup()
+            sys.exit(2)
+    elif should_publish:
         print("[pipeline] Step 5: Clicking publish button...")
         try:
             note_link = publisher._click_publish(post_time != None)

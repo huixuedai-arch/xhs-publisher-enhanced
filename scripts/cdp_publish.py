@@ -3954,6 +3954,47 @@ class XiaohongshuPublisher:
             })
             time.sleep(0.05)
 
+    def _click_save_draft(self):
+        """Click the save draft button ('暂存离开') for image-text posts."""
+        print("[cdp_publish] Clicking save draft button...")
+        self._sleep(ACTION_INTERVAL, minimum_seconds=0.25)
+        
+        # Use the same logic as publish button but look for "暂存离开"
+        rect = self._evaluate("""
+            (() => {
+                const keywords = ["暂存离开"];
+                const buttons = document.querySelectorAll("button, [role='button'], .d-button");
+                const visible = (node) => (
+                    node instanceof HTMLElement &&
+                    node.offsetParent !== null &&
+                    node.getBoundingClientRect().width > 0 &&
+                    node.getBoundingClientRect().height > 0
+                );
+                const toRect = (node) => {
+                    const rect = node.getBoundingClientRect();
+                    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+                };
+                for (const node of buttons) {
+                    if (!visible(node)) continue;
+                    const text = (node.innerText || node.textContent || "").trim();
+                    if (keywords.includes(text)) {
+                        return toRect(node);
+                    }
+                }
+                return null;
+            })();
+        """)
+        
+        if not rect:
+            raise CDPError("Could not find '暂存离开' button.")
+        
+        cx = rect["x"] + rect["width"] / 2
+        cy = rect["y"] + rect["height"] / 2
+        print(f"[cdp_publish] Found '暂存离开' at ({cx:.0f}, {cy:.0f}), clicking via CDP...")
+        self._click_mouse(cx, cy)
+        self._sleep(2, minimum_seconds=1.0)
+        print("[cdp_publish] '暂存离开' clicked, saved to draft.")
+
     def _click_publish(self, scheduled: bool = False):
         """Click the publish button using CDP mouse events."""
         print("[cdp_publish] Clicking publish button...")
@@ -4002,6 +4043,7 @@ class XiaohongshuPublisher:
         content: str,
         image_paths: list[str] | None = None,
         post_time: str | None = None,
+        save_draft: bool = False,
     ):
         """
         Execute the full publish workflow:
@@ -4011,12 +4053,14 @@ class XiaohongshuPublisher:
         4. Fill title
         5. Fill content
         6. Set schedule publish time (if necessary)
+        7. Save to draft or publish
 
         Args:
             title: Article title
             content: Article body text (paragraphs separated by newlines)
             image_paths: List of local file paths to images to upload
             post_time: Optional scheduled publish time (e.g. "2026-03-01 10:00")
+            save_draft: If True, save to draft instead of publishing
         """
         if not self.ws:
             raise CDPError("Not connected. Call connect() first.")
@@ -4049,10 +4093,15 @@ class XiaohongshuPublisher:
         # Step 6: Set schedule publish time (if provided)
         self._set_schedule_post_time(post_time)
 
-        print(
-            "\n[cdp_publish] Content has been filled in.\n"
-            "  Please review in the browser before publishing.\n"
-        )
+        # Step 7: Save to draft or publish
+        if save_draft:
+            print("[cdp_publish] save_draft=True, clicking '暂存离开' to save as draft...")
+            self._click_save_draft()
+        else:
+            print(
+                "\n[cdp_publish] Content has been filled in.\n"
+                "  Please review in the browser before publishing.\n"
+            )
 
     def publish_video(
         self,
