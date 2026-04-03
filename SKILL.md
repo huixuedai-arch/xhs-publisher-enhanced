@@ -368,3 +368,32 @@ python scripts/cdp_publish.py notes-from-profile --user-id USER_ID --limit 20 --
 - 话题标签自动填充（高热度）
 - **添加封面图片时 Finder 对话框需要手动操作**，自动化无法控制系统文件对话框
 
+---
+
+## 2026-04-03 流程更新
+
+### 图文发布流程（已验证可用）
+
+| 步骤 | 操作 | 说明 |
+|------|------|------|
+| 1 | 点"上传图文" tab | |
+| 2 | 选择本地图片上传 | 支持多张图片（1-9张）|
+| 3 | 等待图片上传完成 | |
+| 4 | 填标题 | 要吸引人 |
+| 5 | 填正文 | 支持话题标签自动识别 |
+| 6 | 脚本自动选择话题标签 | 识别正文中的 #话题 |
+| 7 | 点击"发布" | 直接发布到小红书 |
+
+**命令示例：**
+```bash
+python scripts/publish_pipeline.py --headless \
+  --title-file /abs/path/title.txt \
+  --content-file /abs/path/content.txt \
+  --images "/abs/path/img1.jpg" "/abs/path/img2.jpg"
+```
+
+**特点：**
+- 全自动发布，无需人工介入
+- 自动识别并添加话题标签
+- 直接发布，不存草稿
+
